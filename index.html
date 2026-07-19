@@ -79,7 +79,19 @@
     border-radius: 14px;
     padding: 16px;
     margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
+  button:active { transform: scale(0.975); }
+  button { transition: transform 0.1s ease; }
+  #updBanner {
+    display: none; background: var(--accent); color: #fff;
+    border: none; border-radius: 12px; padding: 12px 14px;
+    font-size: 14px; font-weight: 600; text-align: center;
+    margin: 0 0 14px; width: 100%; cursor: pointer;
+  }
+  .tile { cursor: pointer; }
+  .delta-down { color: var(--good); font-weight: 600; }
+  .delta-up { color: var(--danger); font-weight: 600; }
   .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   .card h3 { font-size: 14px; font-weight: 600; margin: 10px 0 6px; }
   label { display: block; font-size: 13px; color: var(--text-secondary); margin: 10px 0 4px; }
@@ -141,10 +153,10 @@
   .weekbar span { font-size: 13px; color: var(--text-secondary); }
 
   /* Exercise rows */
-  .ex-row { display: grid; grid-template-columns: 1fr 56px 56px 64px 34px; gap: 6px; margin-bottom: 6px; align-items: center; }
-  .ex-row input { padding: 8px 8px; font-size: 14px; }
-  .ex-row .del { background: transparent; color: var(--muted); border: none; font-size: 18px; width: 34px; padding: 6px 0; margin: 0; }
-  .ex-head { display: grid; grid-template-columns: 1fr 56px 56px 64px 34px; gap: 6px; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .ex-row { display: grid; grid-template-columns: 1fr 50px 50px 64px 30px; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .ex-row input { padding: 8px 6px; font-size: 16px; }
+  .ex-row .del { background: transparent; color: var(--muted); border: none; font-size: 18px; width: 30px; padding: 6px 0; margin: 0; }
+  .ex-head { display: grid; grid-template-columns: 1fr 50px 50px 64px 30px; gap: 6px; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
 
   /* History */
   .hist-item { border-top: 1px solid var(--grid); padding: 10px 0; }
@@ -219,13 +231,15 @@
 <div class="app">
   <header class="top">
     <h1 id="hello">Мой Трекер 💪</h1>
-    <p>Цель: похудение · зал · 3 раза в неделю</p>
+    <p id="subTitle">Цель: похудение · зал · 3 раза в неделю</p>
   </header>
 
+  <button id="updBanner" onclick="location.href='index.html?upd=' + Date.now()">🔄 Вышло обновление приложения — нажми, чтобы обновить</button>
+
   <div class="tiles">
-    <div class="tile"><div class="k">Вес</div><div class="v" id="tWeight">—</div><div class="s" id="tWeightD"></div></div>
-    <div class="tile"><div class="k">ИМТ</div><div class="v" id="tBmi">—</div><div class="s" id="tBmiCat"></div></div>
-    <div class="tile"><div class="k">До цели</div><div class="v" id="tGoal">—</div><div class="s">кг осталось</div></div>
+    <div class="tile" onclick="goTab('sec-weight')"><div class="k">Вес</div><div class="v" id="tWeight">—</div><div class="s" id="tWeightD"></div></div>
+    <div class="tile" onclick="goTab('sec-profile')"><div class="k">ИМТ</div><div class="v" id="tBmi">—</div><div class="s" id="tBmiCat"></div></div>
+    <div class="tile" onclick="goTab('sec-weight')"><div class="k">До цели</div><div class="v" id="tGoal">—</div><div class="s">кг осталось</div></div>
   </div>
 
   <div class="card">
@@ -363,6 +377,7 @@
       <p class="note">Вставь сохранённый отчёт в поле выше и нажми:</p>
       <button class="ghost" onclick="importData()">Загрузить из отчёта</button>
       <button class="danger-ghost" onclick="resetAll()">Очистить всё</button>
+      <p class="note" style="margin-top:12px;text-align:center">Версия приложения: <span id="verLabel"></span></p>
     </div>
   </section>
 </div>
@@ -411,6 +426,25 @@ function go(btn) {
   document.querySelectorAll(".page-sec").forEach(s => s.classList.remove("active"));
   $(btn.dataset.sec).classList.add("active");
 }
+function goTab(secId) {
+  const btn = document.querySelector(`nav button[data-sec="${secId}"]`);
+  if (btn) { go(btn); window.scrollTo({ top: 0, behavior: "smooth" }); }
+}
+
+// ===== Проверка обновлений приложения =====
+const APP_VERSION = "2026.07.19-4";
+async function checkVersion() {
+  try {
+    if (location.protocol === "file:") return;
+    const r = await fetch("version.json?ts=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j.v && j.v !== APP_VERSION) $("updBanner").style.display = "block";
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { loadCoach(); checkVersion(); }
+});
 
 // ===== Шаблоны дней плана =====
 const PLANS = {
@@ -510,16 +544,22 @@ function saveProfile() {
 }
 
 // ===== Отрисовка =====
-function bmiCat(b) { return b < 18.5 ? "ниже нормы" : b < 25 ? "норма" : b < 30 ? "избыточный" : "ожирение"; }
+function bmiCat(b) { return b < 18.5 ? "ниже нормы" : b < 25 ? "норма ✅" : b < 30 ? "чуть выше нормы" : "выше нормы"; }
 
 function render() {
   saveLS();
   const p = state.profile;
   $("hello").textContent = (p.name ? p.name + ", твой" : "Мой") + " Трекер 💪";
+  $("subTitle").textContent = `Цель: ${p.goal ? p.goal + " кг" : "похудение"} · зал · 3 раза в неделю`;
   const last = state.weights[state.weights.length - 1];
   const prev = state.weights[state.weights.length - 2];
   $("tWeight").textContent = last ? last.kg : "—";
-  $("tWeightD").textContent = last && prev ? (last.kg - prev.kg <= 0 ? "▼ " : "▲ ") + Math.abs(last.kg - prev.kg).toFixed(1) + " кг с прошлого раза" : "кг";
+  if (last && prev) {
+    const d = last.kg - prev.kg;
+    $("tWeightD").innerHTML = d <= 0
+      ? `<span class="delta-down">▼ ${Math.abs(d).toFixed(1)} кг</span> — так держать!`
+      : `<span class="delta-up">▲ ${d.toFixed(1)} кг</span> с прошлого раза`;
+  } else $("tWeightD").textContent = last ? "запиши вес через неделю" : "нажми и запиши вес";
   if (last && p.height) {
     const bmi = last.kg / Math.pow(p.height / 100, 2);
     $("tBmi").textContent = bmi.toFixed(1);
@@ -692,7 +732,10 @@ function makeReport() {
     else { $("reportBox").select(); try { document.execCommand("copy"); done(); } catch (e) { toast("Скопируй текст вручную из поля"); } }
   };
   if (navigator.share) {
-    navigator.share({ text: txt }).then(() => toast("Отчёт отправлен! 📨")).catch(copyFallback);
+    navigator.share({ text: txt }).then(() => toast("Отчёт отправлен! 📨")).catch(err => {
+      if (err && err.name === "AbortError") return; // пользователь просто закрыл шторку
+      copyFallback();
+    });
   } else copyFallback();
 }
 
@@ -760,15 +803,23 @@ try {
   document.getElementById("pTheme").value = th;
 } catch (e) {}
 loadLS();
+// Стартовые данные Алмата — чтобы вес и ИМТ были видны сразу
+if (!state.profile.name) state.profile.name = "Алмат";
+if (!state.profile.height) state.profile.height = 178;
+if (!state.profile.age) state.profile.age = 34;
+if (!state.profile.goal) state.profile.goal = 78;
+if (!state.weights.length) state.weights.push({ date: "2026-07-19", kg: 83.4 });
 $("pName").value = state.profile.name || "";
 $("pHeight").value = state.profile.height || "";
 $("pAge").value = state.profile.age || "";
 $("pGoal").value = state.profile.goal || "";
 $("wDate").value = todayStr();
 $("mDate").value = todayStr();
+$("verLabel").textContent = APP_VERSION;
 addExRow();
 render();
 loadCoach();
+checkVersion();
 </script>
 </body>
 </html>
