@@ -30,7 +30,7 @@
     --danger: #d03b3b;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       color-scheme: dark;
       --surface-1: #1a1a19;
       --page: #0d0d0d;
@@ -44,6 +44,20 @@
       --good: #0ca30c;
       --accent: #3987e5;
     }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --good: #0ca30c;
+    --accent: #3987e5;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -332,6 +346,12 @@
         <div><label>Возраст</label><input type="number" inputmode="numeric" id="pAge" placeholder="25"></div>
         <div><label>Целевой вес, кг</label><input type="number" step="0.1" inputmode="decimal" id="pGoal" placeholder="75"></div>
       </div>
+      <label>Тема оформления</label>
+      <select id="pTheme" onchange="applyTheme(this.value)">
+        <option value="auto">Как на телефоне (авто)</option>
+        <option value="light">Всегда светлая</option>
+        <option value="dark">Всегда тёмная</option>
+      </select>
       <button onclick="saveProfile()">Сохранить профиль</button>
     </div>
     <div class="card">
@@ -726,7 +746,19 @@ function resetAll() {
   render(); toast("Очищено");
 }
 
+// ===== Тема =====
+function applyTheme(v) {
+  if (v === "light" || v === "dark") document.documentElement.setAttribute("data-theme", v);
+  else document.documentElement.removeAttribute("data-theme");
+  try { localStorage.setItem("fittracker_theme", v); } catch (e) {}
+}
+
 // ===== Старт =====
+try {
+  const th = localStorage.getItem("fittracker_theme") || "auto";
+  applyTheme(th);
+  document.getElementById("pTheme").value = th;
+} catch (e) {}
 loadLS();
 $("pName").value = state.profile.name || "";
 $("pHeight").value = state.profile.height || "";
