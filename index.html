@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Мой Трекер — тренировки и вес</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Трекер">
+<meta name="theme-color" content="#2a78d6">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --good: #006300;
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --danger: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --good: #0ca30c;
+      --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    font-size: 16px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app { max-width: 560px; margin: 0 auto; padding: 16px 16px 88px; }
+  header.top { padding: 8px 0 16px; }
+  header.top h1 { font-size: 22px; font-weight: 700; }
+  header.top p { color: var(--text-secondary); font-size: 14px; margin-top: 2px; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+  .card h3 { font-size: 14px; font-weight: 600; margin: 10px 0 6px; }
+  label { display: block; font-size: 13px; color: var(--text-secondary); margin: 10px 0 4px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 16px;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--page);
+    color: var(--text-primary);
+  }
+  textarea { min-height: 110px; font-size: 13px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+  button {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    background: var(--accent);
+    color: var(--accent-ink);
+    width: 100%;
+    margin-top: 12px;
+  }
+  button.ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  button.small { width: auto; padding: 8px 12px; font-size: 13px; margin-top: 8px; }
+  button.danger-ghost { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+
+  /* Stat tiles */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .tile .k { font-size: 12px; color: var(--text-secondary); }
+  .tile .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .tile .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .tile .v .up { color: var(--good); font-size: 13px; }
+
+  /* Week progress dots */
+  .weekbar { display: flex; align-items: center; gap: 8px; }
+  .weekbar .dot {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--baseline);
+    background: transparent;
+  }
+  .weekbar .dot.done { background: var(--series-1); border-color: var(--series-1); }
+  .weekbar span { font-size: 13px; color: var(--text-secondary); }
+
+  /* Exercise rows */
+  .ex-row { display: grid; grid-template-columns: 1fr 56px 56px 64px 34px; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .ex-row input { padding: 8px 8px; font-size: 14px; }
+  .ex-row .del { background: transparent; color: var(--muted); border: none; font-size: 18px; width: 34px; padding: 6px 0; margin: 0; }
+  .ex-head { display: grid; grid-template-columns: 1fr 56px 56px 64px 34px; gap: 6px; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+
+  /* History */
+  .hist-item { border-top: 1px solid var(--grid); padding: 10px 0; }
+  .hist-item:first-child { border-top: none; }
+  .hist-item .d { font-size: 13px; color: var(--text-secondary); display: flex; justify-content: space-between; }
+  .hist-item .d b { color: var(--text-primary); }
+  .hist-item ul { list-style: none; margin-top: 4px; }
+  .hist-item li { font-size: 13px; color: var(--text-secondary); padding: 2px 0; }
+  .hist-item li::before { content: "· "; color: var(--muted); }
+
+  /* Chart */
+  .chart-wrap { position: relative; }
+  #chartTip {
+    position: absolute; display: none; pointer-events: none;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 9px; font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12); white-space: nowrap; z-index: 5;
+  }
+  #chartTip b { display: block; font-size: 13px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+
+  /* Plan */
+  .plan-day { border-top: 1px solid var(--grid); padding: 10px 0; }
+  .plan-day:first-child { border-top: none; padding-top: 0; }
+  .plan-day b { font-size: 14px; }
+  .plan-day p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+  .note { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+  .note b { color: var(--text-primary); }
+
+  /* Tabs */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface-1);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around;
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+    z-index: 10;
+  }
+  nav button {
+    background: none; border: none; width: auto; margin: 0;
+    color: var(--muted); font-size: 11px; font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 4px 14px;
+  }
+  nav button .ic { font-size: 20px; line-height: 1; }
+  nav button.active { color: var(--accent); }
+  .page-sec { display: none; }
+  .page-sec.active { display: block; }
+  .toast {
+    position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+    background: var(--text-primary); color: var(--page);
+    padding: 10px 16px; border-radius: 10px; font-size: 14px;
+    display: none; z-index: 20; max-width: 90%;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1 id="hello">Мой Трекер 💪</h1>
+    <p>Цель: похудение · зал · 3 раза в неделю</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">Вес</div><div class="v" id="tWeight">—</div><div class="s" id="tWeightD"></div></div>
+    <div class="tile"><div class="k">ИМТ</div><div class="v" id="tBmi">—</div><div class="s" id="tBmiCat"></div></div>
+    <div class="tile"><div class="k">До цели</div><div class="v" id="tGoal">—</div><div class="s">кг осталось</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Эта неделя</h2>
+    <div class="weekbar" id="weekbar"></div>
+  </div>
+
+  <!-- ТРЕНИРОВКА -->
+  <section class="page-sec active" id="sec-workout">
+    <div class="card">
+      <h2>Записать тренировку</h2>
+      <div class="row">
+        <div><label>Дата</label><input type="date" id="wDate"></div>
+        <div><label>День плана</label>
+          <select id="wPlan">
+            <option>День A — низ + грудь</option>
+            <option>День B — спина + плечи</option>
+            <option>День C — всё тело + кардио</option>
+            <option>Свободная тренировка</option>
+            <option>Кардио</option>
+          </select>
+        </div>
+      </div>
+      <h3>Упражнения</h3>
+      <div class="ex-head"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес, кг</span><span></span></div>
+      <div id="exList"></div>
+      <button class="ghost small" onclick="addExRow()">+ упражнение</button>
+      <label>Заметка (самочувствие, кардио и т.д.)</label>
+      <input type="text" id="wNote" placeholder="Например: 15 мин дорожка, чувствовал себя отлично">
+      <button onclick="saveWorkout()">Сохранить тренировку</button>
+    </div>
+    <div class="card">
+      <h2>История тренировок</h2>
+      <div id="histWorkouts" class="empty">Пока нет записей — начни сегодня!</div>
+    </div>
+  </section>
+
+  <!-- ВЕС -->
+  <section class="page-sec" id="sec-weight">
+    <div class="card">
+      <h2>Записать вес</h2>
+      <div class="row">
+        <div><label>Дата</label><input type="date" id="mDate"></div>
+        <div><label>Вес, кг</label><input type="number" step="0.1" inputmode="decimal" id="mWeight" placeholder="82.5"></div>
+      </div>
+      <button onclick="saveWeight()">Сохранить вес</button>
+    </div>
+    <div class="card">
+      <h2>Динамика веса</h2>
+      <div class="chart-wrap">
+        <div id="chart" class="empty">Добавь минимум две записи веса — появится график.</div>
+        <div id="chartTip"></div>
+      </div>
+      <div id="histWeights"></div>
+    </div>
+  </section>
+
+  <!-- ПЛАН -->
+  <section class="page-sec" id="sec-plan">
+    <div class="card">
+      <h2>План: 3 тренировки в неделю</h2>
+      <div class="plan-day"><b>День A — низ + грудь (напр., понедельник)</b>
+        <p>Разминка 5 мин → Приседания со штангой или в тренажёре 3×10 → Жим лёжа или жим в тренажёре 3×10 → Тяга горизонтального блока 3×12 → Планка 3×30 сек → Кардио 15 мин (дорожка/велосипед).</p></div>
+      <div class="plan-day"><b>День B — спина + плечи (напр., среда)</b>
+        <p>Разминка 5 мин → Румынская тяга с гантелями 3×10 → Тяга верхнего блока 3×12 → Жим гантелей сидя 3×10 → Выпады 3×10 на ногу → Кардио 15 мин.</p></div>
+      <div class="plan-day"><b>День C — всё тело + кардио (напр., пятница)</b>
+        <p>Разминка 5 мин → Жим ногами 3×12 → Отжимания или жим под углом 3×10 → Тяга штанги/гантели в наклоне 3×10 → Скручивания 3×15 → Кардио 20 мин в среднем темпе.</p></div>
+    </div>
+    <div class="card">
+      <h2>Правила для похудения</h2>
+      <p class="note">
+        <b>1. Дефицит калорий решает.</b> Тренировки помогают, но вес уходит на кухне: ешь чуть меньше, больше белка (мясо, рыба, яйца, творог).<br><br>
+        <b>2. Ходи 8–10 тыс. шагов в день.</b> Это половина успеха при похудении.<br><br>
+        <b>3. Взвешивайся 1–2 раза в неделю</b> утром натощак. Нормальный темп — минус 0,3–0,7 кг в неделю.<br><br>
+        <b>4. Прогрессия.</b> Когда 3×12 даются легко — добавляй вес на снаряде.<br><br>
+        <b>5. После каждой тренировки</b> нажми «Отчёт для Claude» и отправь мне в чат — я слежу за прогрессом и подскажу, что подкрутить.
+      </p>
+    </div>
+  </section>
+
+  <!-- ПРОФИЛЬ / ДАННЫЕ -->
+  <section class="page-sec" id="sec-profile">
+    <div class="card">
+      <h2>Профиль</h2>
+      <div class="row">
+        <div><label>Имя</label><input type="text" id="pName" value="Алмат"></div>
+        <div><label>Рост, см</label><input type="number" inputmode="numeric" id="pHeight" placeholder="175"></div>
+      </div>
+      <div class="row">
+        <div><label>Возраст</label><input type="number" inputmode="numeric" id="pAge" placeholder="25"></div>
+        <div><label>Целевой вес, кг</label><input type="number" step="0.1" inputmode="decimal" id="pGoal" placeholder="75"></div>
+      </div>
+      <button onclick="saveProfile()">Сохранить профиль</button>
+    </div>
+    <div class="card">
+      <h2>Отчёт и сохранение данных</h2>
+      <p class="note">Данные автоматически сохраняются на этом устройстве. После тренировки нажми кнопку ниже — текст скопируется. <b>Отправь его Claude в чат</b> (я веду журнал и слежу за прогрессом). Этот же текст — резервная копия: по нему можно восстановить данные на другом устройстве.</p>
+      <button onclick="makeReport()">📋 Отчёт для Claude + резервная копия</button>
+      <textarea id="reportBox" placeholder="Здесь появится отчёт…" style="margin-top:10px"></textarea>
+      <h3>Восстановить данные</h3>
+      <p class="note">Вставь сохранённый отчёт в поле выше и нажми:</p>
+      <button class="ghost" onclick="importData()">Загрузить из отчёта</button>
+      <button class="danger-ghost" onclick="resetAll()">Очистить всё</button>
+    </div>
+  </section>
+</div>
+
+<nav>
+  <button class="active" data-sec="sec-workout" onclick="go(this)"><span class="ic">🏋️</span>Тренировка</button>
+  <button data-sec="sec-weight" onclick="go(this)"><span class="ic">⚖️</span>Вес</button>
+  <button data-sec="sec-plan" onclick="go(this)"><span class="ic">📋</span>План</button>
+  <button data-sec="sec-profile" onclick="go(this)"><span class="ic">👤</span>Профиль</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<datalist id="exNames">
+  <option value="Приседания со штангой"><option value="Жим ногами"><option value="Выпады">
+  <option value="Румынская тяга"><option value="Становая тяга"><option value="Жим лёжа">
+  <option value="Жим гантелей лёжа"><option value="Жим под углом"><option value="Отжимания">
+  <option value="Тяга верхнего блока"><option value="Тяга горизонтального блока"><option value="Тяга штанги в наклоне">
+  <option value="Подтягивания"><option value="Жим гантелей сидя"><option value="Разведение гантелей">
+  <option value="Подъём на бицепс"><option value="Трицепс на блоке"><option value="Планка">
+  <option value="Скручивания"><option value="Дорожка (кардио)"><option value="Велосипед (кардио)"><option value="Эллипс (кардио)">
+</datalist>
+
+<script>
+// ===== Состояние: автосохранение на устройстве + резервная копия через отчёт =====
+let state = { profile: { name: "Алмат", height: null, age: null, goal: null }, weights: [], workouts: [] };
+const LS_KEY = "fittracker_almat";
+function saveLS() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+function loadLS() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s && s.profile && Array.isArray(s.weights) && Array.isArray(s.workouts)) state = s;
+  } catch (e) {}
+}
+
+const $ = id => document.getElementById(id);
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const fmtD = iso => { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }); };
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2600); }
+
+function go(btn) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  document.querySelectorAll(".page-sec").forEach(s => s.classList.remove("active"));
+  $(btn.dataset.sec).classList.add("active");
+}
+
+// ===== Упражнения (строки формы) =====
+function addExRow(name, sets, reps, kg) {
+  const div = document.createElement("div");
+  div.className = "ex-row";
+  div.innerHTML = `<input list="exNames" placeholder="Название" value="${name || ""}">
+    <input type="number" inputmode="numeric" placeholder="3" value="${sets || ""}">
+    <input type="number" inputmode="numeric" placeholder="10" value="${reps || ""}">
+    <input type="number" step="0.5" inputmode="decimal" placeholder="—" value="${kg || ""}">
+    <button class="del" onclick="this.parentElement.remove()">✕</button>`;
+  $("exList").appendChild(div);
+}
+
+function saveWorkout() {
+  const exs = [];
+  document.querySelectorAll("#exList .ex-row").forEach(r => {
+    const i = r.querySelectorAll("input");
+    if (i[0].value.trim()) exs.push({ name: i[0].value.trim(), sets: +i[1].value || null, reps: +i[2].value || null, kg: +i[3].value || null });
+  });
+  const note = $("wNote").value.trim();
+  if (!exs.length && !note) { toast("Добавь хотя бы одно упражнение или заметку"); return; }
+  state.workouts.push({ date: $("wDate").value || todayStr(), plan: $("wPlan").value, exercises: exs, note });
+  state.workouts.sort((a, b) => a.date.localeCompare(b.date));
+  $("exList").innerHTML = ""; addExRow(); $("wNote").value = "";
+  render(); toast("Тренировка сохранена! 🎉 Не забудь отчёт для Claude");
+}
+
+function saveWeight() {
+  const w = parseFloat($("mWeight").value);
+  if (!w || w < 20 || w > 400) { toast("Введи корректный вес"); return; }
+  const date = $("mDate").value || todayStr();
+  state.weights = state.weights.filter(x => x.date !== date);
+  state.weights.push({ date, kg: Math.round(w * 10) / 10 });
+  state.weights.sort((a, b) => a.date.localeCompare(b.date));
+  $("mWeight").value = "";
+  render(); toast("Вес записан");
+}
+
+function saveProfile() {
+  state.profile = { name: $("pName").value.trim() || "Алмат", height: +$("pHeight").value || null, age: +$("pAge").value || null, goal: +$("pGoal").value || null };
+  render(); toast("Профиль сохранён");
+}
+
+// ===== Отрисовка =====
+function bmiCat(b) { return b < 18.5 ? "ниже нормы" : b < 25 ? "норма" : b < 30 ? "избыточный" : "ожирение"; }
+
+function render() {
+  saveLS();
+  const p = state.profile;
+  $("hello").textContent = (p.name ? p.name + ", твой" : "Мой") + " Трекер 💪";
+  const last = state.weights[state.weights.length - 1];
+  const prev = state.weights[state.weights.length - 2];
+  $("tWeight").textContent = last ? last.kg : "—";
+  $("tWeightD").textContent = last && prev ? (last.kg - prev.kg <= 0 ? "▼ " : "▲ ") + Math.abs(last.kg - prev.kg).toFixed(1) + " кг с прошлого раза" : "кг";
+  if (last && p.height) {
+    const bmi = last.kg / Math.pow(p.height / 100, 2);
+    $("tBmi").textContent = bmi.toFixed(1);
+    $("tBmiCat").textContent = bmiCat(bmi);
+  } else { $("tBmi").textContent = "—"; $("tBmiCat").textContent = "укажи рост и вес"; }
+  $("tGoal").textContent = last && p.goal ? Math.max(0, last.kg - p.goal).toFixed(1) : "—";
+
+  // Неделя (Пн–Вс)
+  const now = new Date(); const day = (now.getDay() + 6) % 7;
+  const mon = new Date(now); mon.setDate(now.getDate() - day); mon.setHours(0,0,0,0);
+  const wk = state.workouts.filter(w => { const d = new Date(w.date + "T12:00:00"); return d >= mon; }).length;
+  let dots = "";
+  for (let i = 0; i < 3; i++) dots += `<div class="dot ${i < wk ? "done" : ""}"></div>`;
+  $("weekbar").innerHTML = dots + `<span>${wk} из 3 тренировок${wk >= 3 ? " — план выполнен! 🔥" : ""}</span>`;
+
+  // История тренировок
+  const hw = $("histWorkouts");
+  if (!state.workouts.length) { hw.className = "empty"; hw.textContent = "Пока нет записей — начни сегодня!"; }
+  else {
+    hw.className = "";
+    hw.innerHTML = [...state.workouts].reverse().slice(0, 20).map(w =>
+      `<div class="hist-item"><div class="d"><b>${fmtD(w.date)}</b><span>${w.plan}</span></div>
+       <ul>${w.exercises.map(e => `<li>${e.name}${e.sets ? " — " + e.sets + "×" + (e.reps || "?") : ""}${e.kg ? ", " + e.kg + " кг" : ""}</li>`).join("")}
+       ${w.note ? `<li>${w.note}</li>` : ""}</ul></div>`).join("");
+  }
+
+  // История веса
+  $("histWeights").innerHTML = [...state.weights].reverse().slice(0, 10).map(x =>
+    `<div class="hist-item"><div class="d"><b>${fmtD(x.date)}</b><span>${x.kg} кг</span></div></div>`).join("");
+
+  drawChart();
+}
+
+// ===== График веса (SVG) =====
+let chartPts = [];
+function drawChart() {
+  const el = $("chart");
+  if (state.weights.length < 2) { el.className = "empty"; el.textContent = "Добавь минимум две записи веса — появится график."; return; }
+  el.className = "";
+  const W = 520, H = 240, padL = 40, padR = 14, padT = 16, padB = 30;
+  const data = state.weights;
+  const goal = state.profile.goal;
+  const kgs = data.map(d => d.kg).concat(goal ? [goal] : []);
+  let min = Math.min(...kgs), max = Math.max(...kgs);
+  const span = Math.max(max - min, 2); min -= span * 0.12; max += span * 0.12;
+  const t0 = new Date(data[0].date + "T12:00:00").getTime();
+  const t1 = new Date(data[data.length - 1].date + "T12:00:00").getTime();
+  const X = t => padL + (t1 === t0 ? 0.5 : (t - t0) / (t1 - t0)) * (W - padL - padR);
+  const Y = v => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" id="svgChart">`;
+  // Сетка и подписи оси Y
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const v = min + (max - min) * i / steps, y = Y(v);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
+    svg += `<text x="${padL - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${v.toFixed(1)}</text>`;
+  }
+  // Подписи оси X (первая, средняя, последняя)
+  const xi = [0, Math.floor((data.length - 1) / 2), data.length - 1];
+  [...new Set(xi)].forEach(i => {
+    const t = new Date(data[i].date + "T12:00:00").getTime();
+    const anchor = i === 0 ? "start" : i === data.length - 1 ? "end" : "middle";
+    svg += `<text x="${X(t)}" y="${H - 8}" text-anchor="${anchor}" font-size="11" fill="var(--muted)">${fmtD(data[i].date)}</text>`;
+  });
+  // Целевой вес
+  if (goal && goal > min && goal < max) {
+    svg += `<line x1="${padL}" y1="${Y(goal)}" x2="${W - padR}" y2="${Y(goal)}" stroke="var(--baseline)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    svg += `<text x="${W - padR}" y="${Y(goal) - 5}" text-anchor="end" font-size="11" fill="var(--text-secondary)">цель ${goal} кг</text>`;
+  }
+  // Линия
+  const pts = data.map(d => ({ x: X(new Date(d.date + "T12:00:00").getTime()), y: Y(d.kg), d }));
+  chartPts = pts;
+  svg += `<polyline points="${pts.map(p => p.x + "," + p.y).join(" ")}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  pts.forEach(p => { svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>`; });
+  // Подпись последней точки
+  const lp = pts[pts.length - 1];
+  svg += `<text x="${lp.x}" y="${lp.y - 10}" text-anchor="end" font-size="12" font-weight="600" fill="var(--text-primary)">${lp.d.kg}</text>`;
+  svg += `</svg>`;
+  el.innerHTML = svg;
+
+  const s = $("svgChart");
+  const onMove = ev => {
+    const r = s.getBoundingClientRect();
+    const cx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width * W;
+    let best = null, bd = 1e9;
+    chartPts.forEach(p => { const d = Math.abs(p.x - cx); if (d < bd) { bd = d; best = p; } });
+    if (!best) return;
+    const tip = $("chartTip");
+    tip.innerHTML = `<b>${best.d.kg} кг</b>${fmtD(best.d.date)}`;
+    tip.style.display = "block";
+    tip.style.left = Math.min(Math.max(best.x / W * r.width - 30, 0), r.width - 80) + "px";
+    tip.style.top = (best.y / H * r.height - 48) + "px";
+  };
+  s.addEventListener("mousemove", onMove);
+  s.addEventListener("touchstart", onMove, { passive: true });
+  s.addEventListener("touchmove", onMove, { passive: true });
+  s.addEventListener("mouseleave", () => $("chartTip").style.display = "none");
+}
+
+// ===== Отчёт / резервная копия / импорт =====
+function makeReport() {
+  const p = state.profile;
+  const last = state.weights[state.weights.length - 1];
+  let bmi = last && p.height ? (last.kg / Math.pow(p.height / 100, 2)).toFixed(1) : "—";
+  let txt = `📊 ОТЧЁТ ИЗ ТРЕКЕРА — ${new Date().toLocaleDateString("ru-RU")}\n`;
+  txt += `Профиль: ${p.name}, рост ${p.height || "?"} см${p.age ? ", " + p.age + " лет" : ""}, цель ${p.goal || "?"} кг\n`;
+  txt += `Текущий вес: ${last ? last.kg + " кг (ИМТ " + bmi + ")" : "не записан"}\n\n`;
+  txt += `ВЕС:\n` + (state.weights.slice(-12).map(w => `${w.date}: ${w.kg} кг`).join("\n") || "нет записей") + "\n\n";
+  txt += `ТРЕНИРОВКИ:\n` + (state.workouts.slice(-9).map(w =>
+    `${w.date} — ${w.plan}\n` + w.exercises.map(e => `  • ${e.name}${e.sets ? " " + e.sets + "×" + (e.reps || "?") : ""}${e.kg ? " " + e.kg + " кг" : ""}`).join("\n") + (w.note ? `\n  Заметка: ${w.note}` : "")
+  ).join("\n") || "нет записей") + "\n\n";
+  txt += `---РЕЗЕРВНАЯ КОПИЯ (не удаляй, по ней восстанавливаются данные)---\n${JSON.stringify(state)}`;
+  $("reportBox").value = txt;
+  const done = () => toast("Скопировано! Отправь текст Claude в чат 📨");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { $("reportBox").select(); toast("Скопируй текст вручную из поля"); });
+  else { $("reportBox").select(); try { document.execCommand("copy"); done(); } catch (e) { toast("Скопируй текст вручную из поля"); } }
+}
+
+function importData() {
+  const raw = $("reportBox").value;
+  const m = raw.match(/\{[\s\S]*\}\s*$/);
+  if (!m) { toast("Не нашёл резервную копию в тексте"); return; }
+  try {
+    const s = JSON.parse(m[0]);
+    if (!s.profile || !Array.isArray(s.weights) || !Array.isArray(s.workouts)) throw 0;
+    state = s;
+    $("pName").value = s.profile.name || "";
+    $("pHeight").value = s.profile.height || "";
+    $("pAge").value = s.profile.age || "";
+    $("pGoal").value = s.profile.goal || "";
+    render(); toast("Данные восстановлены ✅");
+  } catch (e) { toast("Не удалось прочитать копию — проверь текст"); }
+}
+
+function resetAll() {
+  if (!confirm("Точно очистить все данные?")) return;
+  state = { profile: { name: "Алмат", height: null, age: null, goal: null }, weights: [], workouts: [] };
+  render(); toast("Очищено");
+}
+
+// ===== Старт =====
+loadLS();
+$("pName").value = state.profile.name || "";
+$("pHeight").value = state.profile.height || "";
+$("pAge").value = state.profile.age || "";
+$("pGoal").value = state.profile.goal || "";
+$("wDate").value = todayStr();
+$("mDate").value = todayStr();
+addExRow();
+render();
+</script>
+</body>
+</html>
