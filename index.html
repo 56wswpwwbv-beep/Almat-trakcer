@@ -281,6 +281,12 @@
       <input type="text" id="wNote" placeholder="Например: 15 мин дорожка, чувствовал себя отлично">
       <button onclick="saveWorkout()">Сохранить тренировку</button>
     </div>
+    <div class="card" id="aiCard" style="display:none">
+      <h2>🤖 AI-разбор</h2>
+      <p class="note">Мгновенный совет прямо в зале. Вечером — полный разбор и задание от Claude в чате.</p>
+      <button class="ghost" onclick="aiReview()">Разобрать последнюю тренировку</button>
+      <div id="aiOut" class="note" style="margin-top:10px; white-space:pre-wrap"></div>
+    </div>
     <div class="card">
       <h2>Таймер отдыха</h2>
       <div class="timer-row">
@@ -371,6 +377,12 @@
         <option value="light">Всегда светлая</option>
         <option value="dark">Всегда тёмная</option>
       </select>
+      <h3>🤖 AI-разбор (по желанию)</h3>
+      <p class="note">Вставь свой OpenAI API-ключ — во вкладке «Тренировка» появится кнопка мгновенного AI-разбора. Ключ хранится только на этом телефоне: не попадает ни в код, ни в отчёты.</p>
+      <div class="row">
+        <div><label>API-ключ OpenAI</label><input type="password" id="aiKey" placeholder="sk-..."></div>
+        <div><label>Модель</label><input type="text" id="aiModel" placeholder="gpt-4o-mini"></div>
+      </div>
       <button onclick="saveProfile()">Сохранить профиль</button>
     </div>
     <div class="card">
@@ -439,7 +451,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-8";
+const APP_VERSION = "2026.07.19-9";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -617,7 +629,42 @@ function saveWeight() {
 
 function saveProfile() {
   state.profile = { name: $("pName").value.trim() || "Алмат", height: +$("pHeight").value || null, age: +$("pAge").value || null, goal: +$("pGoal").value || null };
+  try { localStorage.setItem("fittracker_ai", JSON.stringify({ key: $("aiKey").value.trim(), model: $("aiModel").value.trim() })); } catch (e) {}
+  updateAICard();
   render(); toast("Профиль сохранён");
+}
+
+// ===== AI-разбор через OpenAI API (ключ живёт только на устройстве) =====
+function getAI() { try { return JSON.parse(localStorage.getItem("fittracker_ai") || "null"); } catch (e) { return null; } }
+function updateAICard() { const a = getAI(); $("aiCard").style.display = a && a.key ? "block" : "none"; }
+async function aiReview() {
+  const a = getAI();
+  if (!a || !a.key) { toast("Сначала добавь API-ключ в Профиле"); return; }
+  const w = state.workouts[state.workouts.length - 1];
+  if (!w) { toast("Сначала запиши тренировку"); return; }
+  const out = $("aiOut");
+  out.textContent = "Думаю… ⏳";
+  const lastW = state.weights.length ? state.weights[state.weights.length - 1].kg : "?";
+  const profile = `Мужчина, ${state.profile.age || 34} лет, рост ${state.profile.height || 178} см, текущий вес ${lastW} кг, цель ${state.profile.goal || 78} кг (похудение + рельеф + сила). Программа: 3 тренировки в неделю, сплит: A грудь+трицепс, B спина+бицепс, C плечи+ноги; каждая начинается с бега 10 мин.`;
+  const hist = state.workouts.slice(-3).map(x => `${x.date} — ${x.plan}: ` + x.exercises.map(exStr).join("; ")).join("\n");
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.key },
+      body: JSON.stringify({
+        model: a.model || "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Ты дружелюбный фитнес-тренер. Отвечай по-русски, на «ты», кратко — не больше 120 слов. Структура: 1) похвала и разбор последней тренировки, 2) два-три конкретных совета на следующую (веса, техника, темп)." },
+          { role: "user", content: profile + "\n\nПоследние тренировки:\n" + hist + "\n\nРазбери самую последнюю тренировку." }
+        ]
+      })
+    });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error.message || "ошибка API");
+    out.textContent = j.choices[0].message.content;
+  } catch (e) {
+    out.textContent = "⚠️ Не получилось: " + e.message + "\nПроверь ключ и название модели в Профиле (и интернет).";
+  }
 }
 
 // ===== Отрисовка =====
@@ -894,6 +941,9 @@ $("pGoal").value = state.profile.goal || "";
 $("wDate").value = todayStr();
 $("mDate").value = todayStr();
 $("verLabel").textContent = APP_VERSION;
+const _ai = getAI();
+if (_ai) { $("aiKey").value = _ai.key || ""; $("aiModel").value = _ai.model || ""; }
+updateAICard();
 addExRow();
 render();
 loadCoach();
