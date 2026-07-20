@@ -153,10 +153,12 @@
   .weekbar span { font-size: 13px; color: var(--text-secondary); }
 
   /* Exercise rows */
-  .ex-row { display: grid; grid-template-columns: 1fr 50px 50px 64px 30px; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .ex-row { display: grid; grid-template-columns: 1fr 52px 52px 64px 30px; gap: 6px; margin-bottom: 8px; align-items: start; }
   .ex-row input { padding: 8px 6px; font-size: 16px; }
-  .ex-row .del { background: transparent; color: var(--muted); border: none; font-size: 18px; width: 30px; padding: 6px 0; margin: 0; }
-  .ex-head { display: grid; grid-template-columns: 1fr 50px 50px 64px 30px; gap: 6px; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .ex-row .cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ex-row .unit { font-size: 9px; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; }
+  .ex-row .cell:first-child .unit { text-align: left; }
+  .ex-row .del { background: transparent; color: var(--muted); border: none; font-size: 18px; width: 30px; padding: 8px 0 0; margin: 0; }
 
   /* History */
   .hist-item { border-top: 1px solid var(--grid); padding: 10px 0; }
@@ -272,7 +274,7 @@
       </div>
       <h3>Упражнения</h3>
       <button class="ghost small" onclick="fillPlan()">⚡ Заполнить упражнениями дня</button>
-      <div class="ex-head" style="margin-top:8px"><span>Упражнение</span><span>Подх.</span><span>Повт.</span><span>Вес, кг</span><span></span></div>
+      <p class="note" style="margin:8px 0 6px">Поля подстраиваются под упражнение: у бега — минуты и км/ч, у планки — секунды, у гантелей вес указывай <b>за одну гантель</b>.</p>
       <div id="exList"></div>
       <button class="ghost small" onclick="addExRow()">+ упражнение</button>
       <label>Заметка (самочувствие, кардио и т.д.)</label>
@@ -436,7 +438,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-5";
+const APP_VERSION = "2026.07.19-6";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -452,9 +454,9 @@ document.addEventListener("visibilitychange", () => {
 
 // ===== Шаблоны дней плана =====
 const PLANS = {
-  "День A — грудь + трицепс": [["Бег (разминка)",1,10],["Жим лёжа",4,8],["Жим гантелей под углом",3,10],["Разведение гантелей",3,12],["Трицепс на блоке",3,12],["Французский жим",3,10],["Скручивания",3,15],["Планка",3,30]],
-  "День B — спина + бицепс": [["Бег (разминка)",1,10],["Тяга верхнего блока",4,10],["Тяга горизонтального блока",3,10],["Тяга гантели в наклоне",3,10],["Подъём на бицепс",3,10],["Молотки на бицепс",3,12],["Подъём ног",3,12]],
-  "День C — плечи + ноги": [["Бег (разминка)",1,10],["Жим гантелей сидя",4,10],["Махи гантелями в стороны",3,14],["Разведение в наклоне (задняя дельта)",3,12],["Жим ногами",3,12],["Румынская тяга",3,10],["Скручивания",3,15]]
+  "День A — грудь + трицепс": [["Бег (разминка)",10],["Жим лёжа",4,8],["Жим гантелей под углом",3,10],["Разведение гантелей",3,12],["Трицепс на блоке",3,12],["Французский жим",3,10],["Скручивания",3,15],["Планка",3,30]],
+  "День B — спина + бицепс": [["Бег (разминка)",10],["Тяга верхнего блока",4,10],["Тяга горизонтального блока",3,10],["Тяга гантели в наклоне",3,10],["Подъём на бицепс",3,10],["Молотки на бицепс",3,12],["Подъём ног",3,12]],
+  "День C — плечи + ноги": [["Бег (разминка)",10],["Жим гантелей сидя",4,10],["Махи гантелями в стороны",3,14],["Разведение в наклоне (задняя дельта)",3,12],["Жим ногами",3,12],["Румынская тяга",3,10],["Скручивания",3,15]]
 };
 function fillPlan() {
   const p = PLANS[$("wPlan").value];
@@ -501,23 +503,71 @@ function timerTick() {
   d.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
 }
 
-// ===== Упражнения (строки формы) =====
-function addExRow(name, sets, reps, kg) {
+// ===== Упражнения: типы и умные поля =====
+function exType(name) {
+  const n = (name || "").toLowerCase();
+  if (/бег|дорожк|кардио|велосипед|эллипс|ходьба/.test(n)) return "cardio";
+  if (/планк/.test(n)) return "time";
+  if (/скручив|подъём ног|подъем ног|отжиман|подтягив|гиперэкстен/.test(n)) return "body";
+  if (/гантел|молотк|махи|разведение/.test(n)) return "dumbbell";
+  return "weight";
+}
+const TYPE_CELLS = {
+  weight:   ["подходы", "повторы", "кг"],
+  dumbbell: ["подходы", "повторы", "кг ×1 гант."],
+  time:     ["подходы", "секунды", null],
+  body:     ["подходы", "повторы", null],
+  cardio:   ["минуты", "км/ч", null]
+};
+function updateRowType(div) {
+  const t = exType(div.querySelector("input").value);
+  div.dataset.type = t;
+  const labels = TYPE_CELLS[t];
+  ["c1", "c2", "c3"].forEach((cls, i) => {
+    const cell = div.querySelector("." + cls);
+    const inp = cell.querySelector("input");
+    if (labels[i]) { cell.style.visibility = "visible"; cell.querySelector(".unit").textContent = labels[i]; inp.disabled = false; }
+    else { cell.style.visibility = "hidden"; inp.value = ""; inp.disabled = true; }
+  });
+}
+function addExRow(name, v1, v2, v3) {
   const div = document.createElement("div");
   div.className = "ex-row";
-  div.innerHTML = `<input list="exNames" placeholder="Название" value="${name || ""}">
-    <input type="number" inputmode="numeric" placeholder="3" value="${sets || ""}">
-    <input type="number" inputmode="numeric" placeholder="10" value="${reps || ""}">
-    <input type="number" step="0.5" inputmode="decimal" placeholder="—" value="${kg || ""}">
+  div.innerHTML = `<div class="cell"><input list="exNames" placeholder="Упражнение" value="${name || ""}"><span class="unit">&nbsp;</span></div>
+    <div class="cell c1"><input type="number" inputmode="decimal"><span class="unit"></span></div>
+    <div class="cell c2"><input type="number" inputmode="decimal"><span class="unit"></span></div>
+    <div class="cell c3"><input type="number" step="0.5" inputmode="decimal"><span class="unit"></span></div>
     <button class="del" onclick="this.parentElement.remove()">✕</button>`;
   $("exList").appendChild(div);
+  div.querySelector("input").addEventListener("input", () => updateRowType(div));
+  updateRowType(div);
+  [v1, v2, v3].forEach((v, i) => {
+    const inp = div.querySelector(".c" + (i + 1) + " input");
+    if (v !== undefined && v !== null && v !== "" && !inp.disabled) inp.value = v;
+  });
+}
+
+// Строка описания упражнения (история и отчёт)
+function exStr(e) {
+  const t = e.t || (e.min !== undefined ? "cardio" : "weight");
+  if (t === "cardio") return e.name + (e.min ? ` — ${e.min} мин` : "") + (e.speed ? `, ${e.speed} км/ч` : "");
+  if (t === "time") return e.name + (e.sets ? ` — ${e.sets}×${e.sec || "?"} сек` : "");
+  return e.name + (e.sets ? ` — ${e.sets}×${e.reps || "?"}` : "") + (e.kg ? `, ${e.kg} кг${t === "dumbbell" ? " (гантель)" : ""}` : "");
 }
 
 function saveWorkout() {
   const exs = [];
   document.querySelectorAll("#exList .ex-row").forEach(r => {
-    const i = r.querySelectorAll("input");
-    if (i[0].value.trim()) exs.push({ name: i[0].value.trim(), sets: +i[1].value || null, reps: +i[2].value || null, kg: +i[3].value || null });
+    const name = r.querySelector("input").value.trim();
+    if (!name) return;
+    const t = r.dataset.type || "weight";
+    const v = ["c1", "c2", "c3"].map(c => { const i = r.querySelector("." + c + " input"); return i && !i.disabled ? (parseFloat(i.value) || null) : null; });
+    const e = { name, t };
+    if (t === "cardio") { e.min = v[0]; e.speed = v[1]; }
+    else if (t === "time") { e.sets = v[0]; e.sec = v[1]; }
+    else if (t === "body") { e.sets = v[0]; e.reps = v[1]; }
+    else { e.sets = v[0]; e.reps = v[1]; e.kg = v[2]; }
+    exs.push(e);
   });
   const note = $("wNote").value.trim();
   if (!exs.length && !note) { toast("Добавь хотя бы одно упражнение или заметку"); return; }
@@ -606,7 +656,7 @@ function render() {
     hw.className = "";
     hw.innerHTML = [...state.workouts].reverse().slice(0, 20).map(w =>
       `<div class="hist-item"><div class="d"><b>${fmtD(w.date)}</b><span>${w.plan}</span></div>
-       <ul>${w.exercises.map(e => `<li>${e.name}${e.sets ? " — " + e.sets + "×" + (e.reps || "?") : ""}${e.kg ? ", " + e.kg + " кг" : ""}</li>`).join("")}
+       <ul>${w.exercises.map(e => `<li>${exStr(e)}</li>`).join("")}
        ${w.note ? `<li>${w.note}</li>` : ""}</ul></div>`).join("");
   }
 
@@ -726,7 +776,7 @@ function makeReport() {
   txt += `Текущий вес: ${last ? last.kg + " кг (ИМТ " + bmi + ")" : "не записан"}\n\n`;
   txt += `ВЕС:\n` + (state.weights.slice(-12).map(w => `${w.date}: ${w.kg} кг`).join("\n") || "нет записей") + "\n\n";
   txt += `ТРЕНИРОВКИ:\n` + (state.workouts.slice(-9).map(w =>
-    `${w.date} — ${w.plan}\n` + w.exercises.map(e => `  • ${e.name}${e.sets ? " " + e.sets + "×" + (e.reps || "?") : ""}${e.kg ? " " + e.kg + " кг" : ""}`).join("\n") + (w.note ? `\n  Заметка: ${w.note}` : "")
+    `${w.date} — ${w.plan}\n` + w.exercises.map(e => `  • ${exStr(e)}`).join("\n") + (w.note ? `\n  Заметка: ${w.note}` : "")
   ).join("\n") || "нет записей") + "\n\n";
   txt += `---РЕЗЕРВНАЯ КОПИЯ (не удаляй, по ней восстанавливаются данные)---\n${JSON.stringify(state)}`;
   $("reportBox").value = txt;
@@ -756,7 +806,7 @@ async function loadCoach() {
     $("coachMsg").innerHTML = (coach.updated ? `<b>${coach.updated}</b> · ` : "") + coach.message;
     if (coach.next && coach.next.exercises) {
       $("coachNext").innerHTML = `<h3>Задание: ${coach.next.plan}</h3><ul class="assign">` +
-        coach.next.exercises.map(e => `<li>${e[0]} — ${e[1]}×${e[2]}${e[3] ? " · " + e[3] : ""}</li>`).join("") +
+        coach.next.exercises.map(e => `<li>${e[0]} — ${e[1]}${e[2] ? "×" + e[2] : ""}${e[3] ? " · " + e[3] : ""}</li>`).join("") +
         `</ul>` + (coach.next.note ? `<p class="note">${coach.next.note}</p>` : "");
     } else $("coachNext").innerHTML = "";
   } catch (e) {}
