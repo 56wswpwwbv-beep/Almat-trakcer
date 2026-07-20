@@ -375,8 +375,9 @@
     </div>
     <div class="card">
       <h2>Отчёт и сохранение данных</h2>
-      <p class="note">Данные автоматически сохраняются на этом устройстве. После тренировки нажми кнопку ниже — текст скопируется. <b>Отправь его Claude в чат</b> (я веду журнал и слежу за прогрессом). Этот же текст — резервная копия: по нему можно восстановить данные на другом устройстве.</p>
-      <button onclick="makeReport()">📤 Отправить отчёт Claude</button>
+      <p class="note">После тренировки: нажми кнопку — отчёт скопируется. Потом открой приложение Claude → <b>наш чат про трекер</b> → вставь и отправь. Важно: вставляй именно в наш чат (шторка «Поделиться» открывает новый чат, где Claude не знает твою программу). Отчёт — это ещё и резервная копия данных.</p>
+      <button onclick="makeReport()">📋 Скопировать отчёт для Claude</button>
+      <button class="ghost" onclick="shareReport()">📤 Или поделиться…</button>
       <textarea id="reportBox" placeholder="Здесь появится отчёт…" style="margin-top:10px"></textarea>
       <h3>Восстановить данные</h3>
       <p class="note">Вставь сохранённый отчёт в поле выше и нажми:</p>
@@ -438,7 +439,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-7";
+const APP_VERSION = "2026.07.19-8";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -789,7 +790,7 @@ function drawExChart() {
 }
 
 // ===== Отчёт / резервная копия / импорт =====
-function makeReport() {
+function buildReport() {
   const p = state.profile;
   const last = state.weights[state.weights.length - 1];
   let bmi = last && p.height ? (last.kg / Math.pow(p.height / 100, 2)).toFixed(1) : "—";
@@ -802,17 +803,18 @@ function makeReport() {
   ).join("\n") || "нет записей") + "\n\n";
   txt += `---РЕЗЕРВНАЯ КОПИЯ (не удаляй, по ней восстанавливаются данные)---\n${JSON.stringify(state)}`;
   $("reportBox").value = txt;
-  const copyFallback = () => {
-    const done = () => toast("Скопировано! Вставь текст в чат Claude 📨");
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { $("reportBox").select(); toast("Скопируй текст вручную из поля"); });
-    else { $("reportBox").select(); try { document.execCommand("copy"); done(); } catch (e) { toast("Скопируй текст вручную из поля"); } }
-  };
-  if (navigator.share) {
-    navigator.share({ text: txt }).then(() => toast("Отчёт отправлен! 📨")).catch(err => {
-      if (err && err.name === "AbortError") return; // пользователь просто закрыл шторку
-      copyFallback();
-    });
-  } else copyFallback();
+  return txt;
+}
+function makeReport() {
+  const txt = buildReport();
+  const done = () => toast("Скопировано! Открой Claude → наш чат → вставь 📨");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { $("reportBox").select(); toast("Скопируй текст вручную из поля"); });
+  else { $("reportBox").select(); try { document.execCommand("copy"); done(); } catch (e) { toast("Скопируй текст вручную из поля"); } }
+}
+function shareReport() {
+  const txt = buildReport();
+  if (navigator.share) navigator.share({ text: txt }).catch(() => {});
+  else makeReport();
 }
 
 // ===== Сообщения от тренера (coach.json в репозитории) =====
