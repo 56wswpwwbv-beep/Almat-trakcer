@@ -195,6 +195,12 @@
   .msg.user { background: var(--accent); color: #fff; margin-left: 36px; border-bottom-right-radius: 4px; }
   .msg.ai { background: var(--page); border: 1px solid var(--border); margin-right: 20px; border-bottom-left-radius: 4px; }
   .msg.think { color: var(--muted); background: transparent; border: none; }
+  /* Stats grid */
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { border: 1px solid var(--grid); border-radius: 12px; padding: 11px 12px; }
+  .stat .k { font-size: 11px; color: var(--text-secondary); }
+  .stat .v { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .stat .s { font-size: 10px; color: var(--muted); margin-top: 2px; }
   .assign { list-style: none; margin: 4px 0 6px; }
   .assign li { font-size: 13px; color: var(--text-secondary); padding: 2px 0; }
   .assign li::before { content: "· "; color: var(--muted); }
@@ -298,16 +304,6 @@
       <div id="timerDisplay">—</div>
     </div>
     <div class="card">
-      <h2>Прогресс упражнений</h2>
-      <label>Упражнение</label>
-      <select id="exSel" onchange="drawExChart()"></select>
-      <div class="chart-wrap" style="margin-top:10px">
-        <div id="exChart" class="empty">Записывай веса в упражнениях — здесь появится график роста силы.</div>
-        <div id="exTip" class="charttip"></div>
-      </div>
-      <div id="exRecord" class="note" style="margin-top:8px"></div>
-    </div>
-    <div class="card">
       <h2>История тренировок</h2>
       <div id="histWorkouts" class="empty">Пока нет записей — начни сегодня!</div>
     </div>
@@ -324,12 +320,31 @@
       <button onclick="saveWeight()">Сохранить вес</button>
     </div>
     <div class="card">
+      <h2>Статистика</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">🔥 Серия недель</div><div class="v" id="stStreak">0</div><div class="s">подряд по плану 3/3</div></div>
+        <div class="stat"><div class="k">Тренировок всего</div><div class="v" id="stTotal">0</div><div class="s">с начала пути</div></div>
+        <div class="stat"><div class="k">Вес за 30 дней</div><div class="v" id="stDelta">—</div><div class="s">изменение</div></div>
+        <div class="stat"><div class="k" id="stGoalK">Цель</div><div class="v" id="stForecast">—</div><div class="s">прогноз по текущему темпу</div></div>
+      </div>
+    </div>
+    <div class="card">
       <h2>Динамика веса</h2>
       <div class="chart-wrap">
         <div id="chart" class="empty">Добавь минимум две записи веса — появится график.</div>
-        <div id="chartTip"></div>
+        <div id="chartTip" class="charttip"></div>
       </div>
       <div id="histWeights"></div>
+    </div>
+    <div class="card">
+      <h2>Сила: прогресс упражнений</h2>
+      <label>Упражнение</label>
+      <select id="exSel" onchange="drawExChart()"></select>
+      <div class="chart-wrap" style="margin-top:10px">
+        <div id="exChart" class="empty">Записывай веса в упражнениях — здесь появится график роста силы.</div>
+        <div id="exTip" class="charttip"></div>
+      </div>
+      <div id="exRecord" class="note" style="margin-top:8px"></div>
     </div>
   </section>
 
@@ -421,7 +436,7 @@
 
 <nav>
   <button class="active" data-sec="sec-workout" onclick="go(this)"><span class="ic">🏋️</span>Тренировка</button>
-  <button data-sec="sec-weight" onclick="go(this)"><span class="ic">⚖️</span>Вес</button>
+  <button data-sec="sec-weight" onclick="go(this)"><span class="ic">📊</span>Прогресс</button>
   <button data-sec="sec-plan" onclick="go(this)"><span class="ic">📋</span>План</button>
   <button data-sec="sec-ai" onclick="go(this)"><span class="ic">🤖</span>Тренер</button>
   <button data-sec="sec-profile" onclick="go(this)"><span class="ic">👤</span>Профиль</button>
@@ -471,7 +486,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-11";
+const APP_VERSION = "2026.07.19-12";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -763,6 +778,32 @@ function render() {
   }
   const total = state.workouts.length;
   $("streakLine").innerHTML = (streak > 0 ? `🔥 Серия: <b>${streak} ${streak === 1 ? "неделя" : streak < 5 ? "недели" : "недель"}</b> подряд по плану · ` : "") + `Всего тренировок: <b>${total}</b>`;
+
+  // Карточка «Статистика» на вкладке Прогресс
+  $("stStreak").textContent = streak;
+  $("stTotal").textContent = total;
+  $("stGoalK").textContent = p.goal ? `Цель ${p.goal} кг` : "Цель";
+  let dHtml = "—", forecast = "—";
+  if (state.weights.length >= 2) {
+    const lastE = state.weights[state.weights.length - 1];
+    const lastD = new Date(lastE.date + "T12:00:00");
+    const cutoff = new Date(lastD); cutoff.setDate(cutoff.getDate() - 30);
+    const win = state.weights.filter(x => new Date(x.date + "T12:00:00") >= cutoff);
+    if (win.length >= 2) {
+      const delta = lastE.kg - win[0].kg;
+      dHtml = `<span class="${delta <= 0 ? "delta-down" : "delta-up"}">${delta <= 0 ? "▼" : "▲"} ${Math.abs(delta).toFixed(1)} кг</span>`;
+      const days = (lastD - new Date(win[0].date + "T12:00:00")) / 86400000;
+      if (days >= 6 && delta < 0 && p.goal && lastE.kg > p.goal) {
+        const rate = delta / days * 7; // кг в неделю (отрицательное)
+        const weeks = (p.goal - lastE.kg) / rate;
+        const target = new Date(lastD); target.setDate(target.getDate() + Math.round(weeks * 7));
+        forecast = target.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+      }
+    }
+  }
+  $("stDelta").innerHTML = dHtml;
+  $("stForecast").textContent = forecast;
+  $("stForecast").style.fontSize = forecast === "—" ? "" : "15px";
 
   // История тренировок
   const hw = $("histWorkouts");
