@@ -219,9 +219,9 @@
   }
   nav button {
     background: none; border: none; width: auto; margin: 0;
-    color: var(--muted); font-size: 11px; font-weight: 600;
+    color: var(--muted); font-size: 10px; font-weight: 600;
     display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 4px 14px;
+    padding: 4px 6px;
   }
   nav button .ic { font-size: 20px; line-height: 1; }
   nav button.active { color: var(--accent); }
@@ -286,16 +286,6 @@
       <label>Заметка (самочувствие, кардио и т.д.)</label>
       <input type="text" id="wNote" placeholder="Например: 15 мин дорожка, чувствовал себя отлично">
       <button onclick="saveWorkout()">Сохранить тренировку</button>
-    </div>
-    <div class="card" id="aiCard" style="display:none">
-      <h2>🤖 AI-тренер</h2>
-      <div id="aiChat" class="chat"></div>
-      <div class="row" style="margin-top:8px">
-        <input type="text" id="aiInput" placeholder="Спроси о чём угодно…" style="flex:3" onkeydown="if(event.key==='Enter')sendAI()">
-        <button onclick="sendAI()" style="flex:1;margin-top:0;padding:10px 8px">➤</button>
-      </div>
-      <button class="ghost small" onclick="aiQuick()">⚡ Разбери мою последнюю тренировку</button>
-      <button class="ghost small" onclick="clearAIChat()" style="margin-left:6px">Очистить чат</button>
     </div>
     <div class="card">
       <h2>Таймер отдыха</h2>
@@ -369,6 +359,25 @@
     </div>
   </section>
 
+  <!-- AI-ТРЕНЕР -->
+  <section class="page-sec" id="sec-ai">
+    <div class="card" id="aiCard" style="display:none">
+      <h2>🤖 AI-тренер</h2>
+      <div id="aiChat" class="chat"></div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="aiInput" placeholder="Спроси о чём угодно…" style="flex:3" onkeydown="if(event.key==='Enter')sendAI()">
+        <button onclick="sendAI()" style="flex:1;margin-top:0;padding:10px 8px">➤</button>
+      </div>
+      <button class="ghost small" onclick="aiQuick()">⚡ Разбери мою последнюю тренировку</button>
+      <button class="ghost small" onclick="clearAIChat()" style="margin-left:6px">Очистить чат</button>
+    </div>
+    <div class="card" id="aiSetup" style="display:none">
+      <h2>🤖 AI-тренер</h2>
+      <p class="note">Чтобы включить чат с AI-тренером, добавь свой OpenAI API-ключ в «Профиле» — он хранится только на этом телефоне. После этого здесь появится переписка: тренер знает твою программу, вес и все тренировки.</p>
+      <button class="ghost" onclick="goTab('sec-profile')">Открыть Профиль</button>
+    </div>
+  </section>
+
   <!-- ПРОФИЛЬ / ДАННЫЕ -->
   <section class="page-sec" id="sec-profile">
     <div class="card">
@@ -414,6 +423,7 @@
   <button class="active" data-sec="sec-workout" onclick="go(this)"><span class="ic">🏋️</span>Тренировка</button>
   <button data-sec="sec-weight" onclick="go(this)"><span class="ic">⚖️</span>Вес</button>
   <button data-sec="sec-plan" onclick="go(this)"><span class="ic">📋</span>План</button>
+  <button data-sec="sec-ai" onclick="go(this)"><span class="ic">🤖</span>Тренер</button>
   <button data-sec="sec-profile" onclick="go(this)"><span class="ic">👤</span>Профиль</button>
 </nav>
 <div class="toast" id="toast"></div>
@@ -461,7 +471,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-10";
+const APP_VERSION = "2026.07.19-11";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -646,7 +656,11 @@ function saveProfile() {
 
 // ===== AI-разбор через OpenAI API (ключ живёт только на устройстве) =====
 function getAI() { try { return JSON.parse(localStorage.getItem("fittracker_ai") || "null"); } catch (e) { return null; } }
-function updateAICard() { const a = getAI(); $("aiCard").style.display = a && a.key ? "block" : "none"; }
+function updateAICard() {
+  const has = !!(getAI() && getAI().key);
+  $("aiCard").style.display = has ? "block" : "none";
+  $("aiSetup").style.display = has ? "none" : "block";
+}
 let aiChat = [];
 function loadAIChat() { try { aiChat = JSON.parse(localStorage.getItem("fittracker_aichat") || "[]"); } catch (e) { aiChat = []; } }
 function saveAIChat() { try { localStorage.setItem("fittracker_aichat", JSON.stringify(aiChat.slice(-30))); } catch (e) {} }
