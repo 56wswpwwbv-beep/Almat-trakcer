@@ -1,6 +1,6 @@
 {
-  "name": "Мой Трекер — тренировки и вес",
-  "short_name": "Трекер",
+  "name": "Мой AI-тренер — тренировки и вес",
+  "short_name": "AI-тренер",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f9f9f7",

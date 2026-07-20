@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Мой Трекер — тренировки и вес</title>
+<title>Мой AI-тренер — тренировки и вес</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Трекер">
+<meta name="apple-mobile-web-app-title" content="AI-тренер">
 <meta name="theme-color" content="#2a78d6">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
@@ -182,16 +182,39 @@
   }
   .charttip b { display: block; font-size: 13px; }
 
-  /* Rest timer */
+  /* Rest timer: FAB + модалка + плашка */
   .timer-row { display: flex; gap: 8px; }
   .timer-row button { flex: 1; margin-top: 0; }
-  #timerDisplay {
-    font-size: 46px; font-weight: 700; text-align: center;
-    padding: 10px 0 2px; font-variant-numeric: tabular-nums;
+  .fab {
+    position: fixed; right: 16px; bottom: calc(66px + env(safe-area-inset-bottom));
+    width: 54px; height: 54px; border-radius: 50%; z-index: 15;
+    background: var(--accent); color: #fff; font-size: 24px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.28); border: none; margin: 0; padding: 0; width: 54px;
   }
-  #timerDisplay.done { color: var(--good); }
-  .streak { font-size: 13px; color: var(--text-secondary); margin-top: 8px; }
-  .streak b { color: var(--text-primary); }
+  #timerPill {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    background: var(--accent); color: #fff; padding: 9px 20px; border-radius: 24px;
+    font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums;
+    display: none; z-index: 15; box-shadow: 0 4px 14px rgba(0,0,0,0.28); cursor: pointer;
+  }
+  #tOverlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: none; z-index: 28; align-items: flex-end; justify-content: center; padding: 16px;
+  }
+  .tcard {
+    background: var(--surface-1); border-radius: 18px; padding: 18px;
+    width: 100%; max-width: 420px; text-align: center;
+    margin-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+  #timerBig {
+    font-size: 68px; font-weight: 800; font-variant-numeric: tabular-nums;
+    padding: 4px 0 12px; letter-spacing: 1px;
+  }
+  #timerBig.done { color: var(--good); font-size: 44px; }
+  .weekstrip { padding: 10px 14px; }
+  .weekbar span b { color: var(--text-primary); }
   /* AI chat */
   .chat { max-height: 320px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .msg { padding: 9px 12px; border-radius: 12px; margin: 6px 0; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
@@ -262,7 +285,7 @@
 <body>
 <div class="app">
   <header class="top">
-    <h1 id="hello">Мой Трекер 💪</h1>
+    <h1 id="hello">Мой AI-тренер 💪</h1>
     <p id="subTitle">Цель: похудение · зал · 3 раза в неделю</p>
   </header>
 
@@ -274,16 +297,14 @@
     <div class="tile" onclick="goTab('sec-weight')"><div class="k">До цели</div><div class="v" id="tGoal">—</div><div class="s">кг осталось</div></div>
   </div>
 
-  <div class="card">
-    <h2>Эта неделя</h2>
+  <div class="card weekstrip">
     <div class="weekbar" id="weekbar"></div>
-    <div class="streak" id="streakLine"></div>
   </div>
 
   <!-- ТРЕНИРОВКА -->
   <section class="page-sec active" id="sec-workout">
     <div class="card">
-      <h2>Записать тренировку</h2>
+      <h2>Тренировка</h2>
       <div class="row">
         <div><label>Дата</label><input type="date" id="wDate"></div>
         <div><label>День плана</label>
@@ -304,16 +325,6 @@
       <label>Заметка (самочувствие, кардио и т.д.)</label>
       <input type="text" id="wNote" placeholder="Например: 15 мин дорожка, чувствовал себя отлично">
       <button onclick="saveWorkout()">Сохранить тренировку</button>
-    </div>
-    <div class="card">
-      <h2>Таймер отдыха</h2>
-      <div class="timer-row">
-        <button class="ghost" onclick="startTimer(60)">60 сек</button>
-        <button class="ghost" onclick="startTimer(90)">90 сек</button>
-        <button class="ghost" onclick="startTimer(120)">2 мин</button>
-        <button class="danger-ghost" onclick="stopTimer()" style="margin-top:0;flex:0 0 70px">Стоп</button>
-      </div>
-      <div id="timerDisplay">—</div>
     </div>
     <div class="card" id="coachCard" style="display:none">
       <h2>💬 От тренера Claude</h2>
@@ -452,6 +463,26 @@
   </section>
 </div>
 
+<button class="fab" onclick="openTimer()" aria-label="Таймер отдыха">⏱</button>
+<div id="timerPill" onclick="openTimer()">⏱ 0:00</div>
+
+<div id="tOverlay" onclick="if(event.target===this)closeTimer()">
+  <div class="tcard">
+    <h2 style="font-size:16px">Таймер отдыха</h2>
+    <div id="timerBig">—</div>
+    <div class="timer-row">
+      <button class="ghost" onclick="startTimer(60)">60 сек</button>
+      <button class="ghost" onclick="startTimer(90)">90 сек</button>
+      <button class="ghost" onclick="startTimer(120)">2 мин</button>
+    </div>
+    <div class="timer-row" style="margin-top:8px">
+      <button class="danger-ghost" onclick="stopTimer()">Стоп</button>
+      <button onclick="closeTimer()">Свернуть</button>
+    </div>
+    <p class="note" style="margin-top:10px">Пока идёт отдых — экран не гаснет. Свернёшь — отсчёт останется плашкой внизу.</p>
+  </div>
+</div>
+
 <!-- Анатомические контуры: react-native-body-highlighter (MIT, HichamELBSI) -->
 <div id="mOverlay" onclick="if(event.target===this)closeMuscles()">
   <div class="mcard">
@@ -517,7 +548,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-14";
+const APP_VERSION = "2026.07.19-15";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -575,33 +606,58 @@ function beep() {
   } catch (e) {}
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 }
+function fmtLeft() {
+  const left = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
+  return Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+}
+function setTimerText(txt, done) {
+  const b = $("timerBig");
+  b.textContent = txt;
+  b.classList.toggle("done", !!done);
+}
+function updatePill() {
+  const p = $("timerPill");
+  if (timerArmed && $("tOverlay").style.display !== "flex") { p.style.display = "block"; p.textContent = "⏱ " + fmtLeft(); }
+  else p.style.display = "none";
+}
+function openTimer() {
+  $("tOverlay").style.display = "flex";
+  $("timerPill").style.display = "none";
+  setTimerText(timerArmed ? fmtLeft() : "—");
+}
+function closeTimer() {
+  $("tOverlay").style.display = "none";
+  updatePill();
+}
 function startTimer(sec) {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
   clearInterval(timerInt);
   timerEnd = Date.now() + sec * 1000;
   timerArmed = true;
   acquireWake(); // экран не гаснет, пока идёт отдых
-  $("timerDisplay").classList.remove("done");
   timerTick();
   timerInt = setInterval(timerTick, 250);
 }
 function stopTimer() {
   clearInterval(timerInt); timerInt = null; timerArmed = false; timerEnd = 0;
   releaseWake();
-  $("timerDisplay").textContent = "—"; $("timerDisplay").classList.remove("done");
+  setTimerText("—");
+  updatePill();
 }
 function timerTick() {
-  const left = Math.ceil((timerEnd - Date.now()) / 1000);
-  const d = $("timerDisplay");
-  if (left <= 0) {
+  if (timerEnd - Date.now() <= 0) {
+    if (!timerArmed) return;
     clearInterval(timerInt); timerInt = null; timerArmed = false;
     releaseWake();
-    d.textContent = "Погнали! 💪"; d.classList.add("done");
+    setTimerText("Погнали! 💪", true);
+    const p = $("timerPill");
+    if ($("tOverlay").style.display !== "flex") { p.style.display = "block"; p.textContent = "Погнали! 💪"; }
     beep();
-    setTimeout(() => { if (!timerInt) { d.textContent = "—"; d.classList.remove("done"); } }, 5000);
+    setTimeout(() => { if (!timerArmed) { setTimerText("—"); $("timerPill").style.display = "none"; } }, 6000);
     return;
   }
-  d.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+  setTimerText(fmtLeft());
+  updatePill();
 }
 
 // ===== Карта мышц =====
@@ -814,7 +870,7 @@ function bmiCat(b) { return b < 18.5 ? "ниже нормы" : b < 25 ? "нор�
 function render() {
   saveLS();
   const p = state.profile;
-  $("hello").textContent = (p.name ? p.name + ", твой" : "Мой") + " Трекер 💪";
+  $("hello").textContent = (p.name ? p.name + ", твой" : "Мой") + " AI-тренер 💪";
   $("subTitle").textContent = `Цель: ${p.goal ? p.goal + " кг" : "похудение"} · зал · 3 раза в неделю`;
   const last = state.weights[state.weights.length - 1];
   const prev = state.weights[state.weights.length - 2];
@@ -836,9 +892,6 @@ function render() {
   const now = new Date(); const day = (now.getDay() + 6) % 7;
   const mon = new Date(now); mon.setDate(now.getDate() - day); mon.setHours(0,0,0,0);
   const wk = state.workouts.filter(w => { const d = new Date(w.date + "T12:00:00"); return d >= mon; }).length;
-  let dots = "";
-  for (let i = 0; i < 3; i++) dots += `<div class="dot ${i < wk ? "done" : ""}"></div>`;
-  $("weekbar").innerHTML = dots + `<span>${wk} из 3 тренировок${wk >= 3 ? " — план выполнен! 🔥" : ""}</span>`;
 
   // Серия недель без пропусков
   const perWeek = {};
@@ -858,7 +911,9 @@ function render() {
     else break;
   }
   const total = state.workouts.length;
-  $("streakLine").innerHTML = (streak > 0 ? `🔥 Серия: <b>${streak} ${streak === 1 ? "неделя" : streak < 5 ? "недели" : "недель"}</b> подряд по плану · ` : "") + `Всего тренировок: <b>${total}</b>`;
+  let dots = "";
+  for (let i = 0; i < 3; i++) dots += `<div class="dot ${i < wk ? "done" : ""}"></div>`;
+  $("weekbar").innerHTML = dots + `<span><b>${wk} из 3</b> на этой неделе${wk >= 3 ? " 🔥" : ""}${streak > 0 ? ` · серия ${streak} нед` : ""} · всего ${total}</span>`;
 
   // Карточка «Статистика» на вкладке Прогресс
   $("stStreak").textContent = streak;
@@ -1008,7 +1063,7 @@ function buildReport() {
   const p = state.profile;
   const last = state.weights[state.weights.length - 1];
   let bmi = last && p.height ? (last.kg / Math.pow(p.height / 100, 2)).toFixed(1) : "—";
-  let txt = `📊 ОТЧЁТ ИЗ ТРЕКЕРА — ${new Date().toLocaleDateString("ru-RU")}\n`;
+  let txt = `📊 ОТЧЁТ ИЗ AI-ТРЕНЕРА — ${new Date().toLocaleDateString("ru-RU")}\n`;
   txt += `Профиль: ${p.name}, рост ${p.height || "?"} см${p.age ? ", " + p.age + " лет" : ""}, цель ${p.goal || "?"} кг\n`;
   txt += `Текущий вес: ${last ? last.kg + " кг (ИМТ " + bmi + ")" : "не записан"}\n\n`;
   txt += `ВЕС:\n` + (state.weights.slice(-12).map(w => `${w.date}: ${w.kg} кг`).join("\n") || "нет записей") + "\n\n";
