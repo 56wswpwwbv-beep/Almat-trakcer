@@ -438,7 +438,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-6";
+const APP_VERSION = "2026.07.19-7";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -449,7 +449,16 @@ async function checkVersion() {
   } catch (e) {}
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") { loadCoach(); checkVersion(); }
+  if (document.visibilityState === "visible") {
+    loadCoach(); checkVersion();
+    // Пересчёт таймера после блокировки/сворачивания
+    if (timerArmed) {
+      acquireWake();
+      clearInterval(timerInt);
+      if (Date.now() < timerEnd) timerInt = setInterval(timerTick, 250);
+      timerTick(); // если время вышло — сразу сигнал «Погнали!»
+    }
+  }
 });
 
 // ===== Шаблоны дней плана =====
@@ -469,7 +478,13 @@ function fillPlan() {
 }
 
 // ===== Таймер отдыха =====
-let timerInt = null, timerEnd = 0, audioCtx = null;
+let timerInt = null, timerEnd = 0, audioCtx = null, timerArmed = false, wakeLock = null;
+async function acquireWake() {
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+function releaseWake() {
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {}
+}
 function beep() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -485,16 +500,23 @@ function startTimer(sec) {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
   clearInterval(timerInt);
   timerEnd = Date.now() + sec * 1000;
+  timerArmed = true;
+  acquireWake(); // экран не гаснет, пока идёт отдых
   $("timerDisplay").classList.remove("done");
   timerTick();
   timerInt = setInterval(timerTick, 250);
 }
-function stopTimer() { clearInterval(timerInt); timerInt = null; $("timerDisplay").textContent = "—"; $("timerDisplay").classList.remove("done"); }
+function stopTimer() {
+  clearInterval(timerInt); timerInt = null; timerArmed = false; timerEnd = 0;
+  releaseWake();
+  $("timerDisplay").textContent = "—"; $("timerDisplay").classList.remove("done");
+}
 function timerTick() {
   const left = Math.ceil((timerEnd - Date.now()) / 1000);
   const d = $("timerDisplay");
   if (left <= 0) {
-    clearInterval(timerInt); timerInt = null;
+    clearInterval(timerInt); timerInt = null; timerArmed = false;
+    releaseWake();
     d.textContent = "Погнали! 💪"; d.classList.add("done");
     beep();
     setTimeout(() => { if (!timerInt) { d.textContent = "—"; d.classList.remove("done"); } }, 5000);
