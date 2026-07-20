@@ -189,6 +189,12 @@
   #timerDisplay.done { color: var(--good); }
   .streak { font-size: 13px; color: var(--text-secondary); margin-top: 8px; }
   .streak b { color: var(--text-primary); }
+  /* AI chat */
+  .chat { max-height: 320px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .msg { padding: 9px 12px; border-radius: 12px; margin: 6px 0; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .msg.user { background: var(--accent); color: #fff; margin-left: 36px; border-bottom-right-radius: 4px; }
+  .msg.ai { background: var(--page); border: 1px solid var(--border); margin-right: 20px; border-bottom-left-radius: 4px; }
+  .msg.think { color: var(--muted); background: transparent; border: none; }
   .assign { list-style: none; margin: 4px 0 6px; }
   .assign li { font-size: 13px; color: var(--text-secondary); padding: 2px 0; }
   .assign li::before { content: "· "; color: var(--muted); }
@@ -282,10 +288,14 @@
       <button onclick="saveWorkout()">Сохранить тренировку</button>
     </div>
     <div class="card" id="aiCard" style="display:none">
-      <h2>🤖 AI-разбор</h2>
-      <p class="note">Мгновенный совет прямо в зале. Вечером — полный разбор и задание от Claude в чате.</p>
-      <button class="ghost" onclick="aiReview()">Разобрать последнюю тренировку</button>
-      <div id="aiOut" class="note" style="margin-top:10px; white-space:pre-wrap"></div>
+      <h2>🤖 AI-тренер</h2>
+      <div id="aiChat" class="chat"></div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="aiInput" placeholder="Спроси о чём угодно…" style="flex:3" onkeydown="if(event.key==='Enter')sendAI()">
+        <button onclick="sendAI()" style="flex:1;margin-top:0;padding:10px 8px">➤</button>
+      </div>
+      <button class="ghost small" onclick="aiQuick()">⚡ Разбери мою последнюю тренировку</button>
+      <button class="ghost small" onclick="clearAIChat()" style="margin-left:6px">Очистить чат</button>
     </div>
     <div class="card">
       <h2>Таймер отдыха</h2>
@@ -451,7 +461,7 @@ function goTab(secId) {
 }
 
 // ===== Проверка обновлений приложения =====
-const APP_VERSION = "2026.07.19-9";
+const APP_VERSION = "2026.07.19-10";
 async function checkVersion() {
   try {
     if (location.protocol === "file:") return;
@@ -637,35 +647,56 @@ function saveProfile() {
 // ===== AI-разбор через OpenAI API (ключ живёт только на устройстве) =====
 function getAI() { try { return JSON.parse(localStorage.getItem("fittracker_ai") || "null"); } catch (e) { return null; } }
 function updateAICard() { const a = getAI(); $("aiCard").style.display = a && a.key ? "block" : "none"; }
-async function aiReview() {
+let aiChat = [];
+function loadAIChat() { try { aiChat = JSON.parse(localStorage.getItem("fittracker_aichat") || "[]"); } catch (e) { aiChat = []; } }
+function saveAIChat() { try { localStorage.setItem("fittracker_aichat", JSON.stringify(aiChat.slice(-30))); } catch (e) {} }
+function renderAIChat(thinking) {
+  const box = $("aiChat");
+  box.innerHTML = aiChat.map(m => `<div class="msg ${m.role === "user" ? "user" : "ai"}">${m.content.replace(/</g, "&lt;")}</div>`).join("")
+    + (thinking ? `<div class="msg think">Тренер печатает… ⏳</div>` : "")
+    + (!aiChat.length && !thinking ? `<div class="msg think">Задай вопрос — я знаю твою программу, вес и все тренировки. Например: «сколько белка мне съесть сегодня?»</div>` : "");
+  box.scrollTop = box.scrollHeight;
+}
+function clearAIChat() { aiChat = []; saveAIChat(); renderAIChat(); }
+function aiContext() {
+  const lastW = state.weights.length ? state.weights[state.weights.length - 1].kg : "?";
+  const hist = state.workouts.slice(-5).map(x => `${x.date} — ${x.plan}: ` + x.exercises.map(exStr).join("; ") + (x.note ? ` (заметка: ${x.note})` : "")).join("\n") || "тренировок ещё не было";
+  const wts = state.weights.slice(-6).map(x => `${x.date}: ${x.kg} кг`).join(", ") || "нет записей";
+  return `Ты — личный фитнес-тренер Алмата в его приложении. Отвечай по-русски, на «ты», дружелюбно и кратко (обычно до 150 слов), без markdown-разметки. Только темы: тренировки, питание, восстановление, здоровье, мотивация. Данные подопечного:
+Мужчина, ${state.profile.age || 34} лет, рост ${state.profile.height || 178} см, текущий вес ${lastW} кг, цель ${state.profile.goal || 78} кг (похудение до нормы + рельеф + сила). Ориентиры: ~2100 ккал/день, белок 130–160 г, 8–10 тыс. шагов.
+Программа: 3 раза в неделю, сплит: A грудь+трицепс, B спина+бицепс, C плечи+ноги (+пресс каждый день, старт — бег 10 мин). Прогрессия: все подходы чисто → +2,5 кг.
+Динамика веса: ${wts}
+Последние тренировки:
+${hist}
+Если вопрос про боль или здоровье — дай осторожный совет и напомни, что при сильной/острой боли нужен врач.`;
+}
+async function sendAI(preset) {
   const a = getAI();
   if (!a || !a.key) { toast("Сначала добавь API-ключ в Профиле"); return; }
-  const w = state.workouts[state.workouts.length - 1];
-  if (!w) { toast("Сначала запиши тренировку"); return; }
-  const out = $("aiOut");
-  out.textContent = "Думаю… ⏳";
-  const lastW = state.weights.length ? state.weights[state.weights.length - 1].kg : "?";
-  const profile = `Мужчина, ${state.profile.age || 34} лет, рост ${state.profile.height || 178} см, текущий вес ${lastW} кг, цель ${state.profile.goal || 78} кг (похудение + рельеф + сила). Программа: 3 тренировки в неделю, сплит: A грудь+трицепс, B спина+бицепс, C плечи+ноги; каждая начинается с бега 10 мин.`;
-  const hist = state.workouts.slice(-3).map(x => `${x.date} — ${x.plan}: ` + x.exercises.map(exStr).join("; ")).join("\n");
+  const q = preset || $("aiInput").value.trim();
+  if (!q) return;
+  $("aiInput").value = "";
+  aiChat.push({ role: "user", content: q });
+  renderAIChat(true);
   try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + a.key },
       body: JSON.stringify({
         model: a.model || "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "Ты дружелюбный фитнес-тренер. Отвечай по-русски, на «ты», кратко — не больше 120 слов. Структура: 1) похвала и разбор последней тренировки, 2) два-три конкретных совета на следующую (веса, техника, темп)." },
-          { role: "user", content: profile + "\n\nПоследние тренировки:\n" + hist + "\n\nРазбери самую последнюю тренировку." }
-        ]
+        messages: [{ role: "system", content: aiContext() }].concat(aiChat.slice(-12))
       })
     });
     const j = await r.json();
     if (j.error) throw new Error(j.error.message || "ошибка API");
-    out.textContent = j.choices[0].message.content;
+    aiChat.push({ role: "assistant", content: j.choices[0].message.content });
   } catch (e) {
-    out.textContent = "⚠️ Не получилось: " + e.message + "\nПроверь ключ и название модели в Профиле (и интернет).";
+    aiChat.push({ role: "assistant", content: "⚠️ Не получилось: " + e.message + "\nПроверь ключ и модель в Профиле (и интернет)." });
   }
+  saveAIChat();
+  renderAIChat();
 }
+function aiQuick() { sendAI("Разбери мою последнюю тренировку и дай советы на следующую."); }
 
 // ===== Отрисовка =====
 function bmiCat(b) { return b < 18.5 ? "ниже нормы" : b < 25 ? "норма ✅" : b < 30 ? "чуть выше нормы" : "выше нормы"; }
@@ -944,6 +975,8 @@ $("verLabel").textContent = APP_VERSION;
 const _ai = getAI();
 if (_ai) { $("aiKey").value = _ai.key || ""; $("aiModel").value = _ai.model || ""; }
 updateAICard();
+loadAIChat();
+renderAIChat();
 addExRow();
 render();
 loadCoach();
